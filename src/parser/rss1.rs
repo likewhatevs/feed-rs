@@ -1,8 +1,8 @@
-use chrono::prelude::*;
-use xml5ever::rcdom::{NodeData, Handle};
-use feed::Feed;
-use entry::{Entry, Link};
 use super::{attr, text, timestamp};
+use chrono::prelude::*;
+use entry::{Entry, Link};
+use feed::Feed;
+use xml5ever::rcdom::{Handle, NodeData};
 
 pub fn handle_rss1(handle: Handle) -> Option<Feed> {
     let node = handle;
@@ -10,28 +10,34 @@ pub fn handle_rss1(handle: Handle) -> Option<Feed> {
     let mut entries = vec![];
     for child in node.children.borrow().iter() {
         match child.data {
-            NodeData::Element { ref name, ref attrs, .. } => {
+            NodeData::Element {
+                ref name,
+                ref attrs,
+                ..
+            } => {
                 let tag_name = name.local.as_ref();
                 match tag_name {
                     "channel" => feed = handle_channel(child.clone()),
-                    "item"    => {
+                    "item" => {
                         if let Some(about) = attr("about", &attrs.borrow()) {
                             let f = feed.clone().unwrap();
-                            let items = &mut f.entries.iter()
-                                .filter(|e| e.id == about.to_string())
+                            let items = &mut f
+                                .entries
+                                .iter()
+                                .filter(|e| e.id == about)
                                 .map(|e| handle_item(child.clone(), e.id.to_string()))
                                 .collect::<Vec<_>>();
                             entries.append(items);
                         }
-                    },
-                    _         => (),
+                    }
+                    _ => (),
                 }
-            },
-            _ => {},
+            }
+            _ => {}
         }
     }
     if let Some(ref mut f) = feed {
-        f.entries  = entries;
+        f.entries = entries;
     }
     feed
 }
@@ -44,7 +50,7 @@ pub fn handle_channel(handle: Handle) -> Option<Feed> {
             if let Some(about) = attr("about", &attrs.borrow()) {
                 feed.id = about;
             }
-        },
+        }
         _ => (),
     }
     for child in node.children.borrow().iter() {
@@ -62,8 +68,8 @@ pub fn handle_channel(handle: Handle) -> Option<Feed> {
                     "language" => feed.language = text(child.clone()),
                     _ => (),
                 }
-            },
-            _ => {},
+            }
+            _ => {}
         }
     }
     Some(feed)
@@ -84,22 +90,26 @@ pub fn handle_items(handle: Handle, feed: &mut Feed) {
         }
     }
     if seq.is_none() {
-        return
+        return;
     }
     let seq = seq.unwrap();
     for child in seq.children.borrow().iter() {
         match child.data {
-            NodeData::Element { ref name, ref attrs, .. } => {
+            NodeData::Element {
+                ref name,
+                ref attrs,
+                ..
+            } => {
                 let tag_name = name.local.as_ref();
                 match tag_name {
                     "li" => {
                         if let Some(resource) = attr("resource", &attrs.borrow()) {
                             let mut entry = Entry::new();
-                            entry.id      = resource;
+                            entry.id = resource;
                             feed.entries.push(entry);
                         }
-                    },
-                    _    => (),
+                    }
+                    _ => (),
                 }
             }
             _ => (),
@@ -121,14 +131,16 @@ pub fn handle_item(handle: Handle, id: String) -> Entry {
                     "link" => {
                         entry.alternate = text(child.clone())
                             .map(|s| vec![Link::new("text/html", s)])
-                            .unwrap_or(vec![])
-                    },
+                            .unwrap_or_else(|| vec![])
+                    }
                     // dc
-                    "date" => entry.published = timestamp(child.clone()).unwrap_or(Utc::now().naive_utc()),
+                    "date" => entry.published = timestamp(child.clone()).unwrap_or_else(Utc::now),
                     "creator" => entry.author = text(child.clone()),
-                    "subject" => if let Some(s) = text(child.clone()) {
-                        entry.keywords.push(s)
-                    },
+                    "subject" => {
+                        if let Some(s) = text(child.clone()) {
+                            entry.keywords.push(s)
+                        }
+                    }
                     _ => (),
                 }
             }

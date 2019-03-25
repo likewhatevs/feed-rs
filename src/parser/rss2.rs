@@ -1,8 +1,8 @@
+use super::{attr, text, timestamp, uuid_gen};
 use chrono::prelude::*;
-use xml5ever::rcdom::{NodeData, Handle};
-use feed::Feed;
 use entry::{Entry, Link};
-use super::{attr, text, uuid_gen, timestamp};
+use feed::Feed;
+use xml5ever::rcdom::{Handle, NodeData};
 
 static ATOM_NS: &'static str = "http://www.w3.org/2005/Atom";
 
@@ -18,8 +18,8 @@ pub fn handle_rss2(handle: Handle) -> Option<Feed> {
                     "channel" => handle_channel(child.clone(), &mut feed),
                     _ => (),
                 }
-            },
-            _ => {},
+            }
+            _ => {}
         }
     }
     Some(feed)
@@ -29,18 +29,24 @@ pub fn handle_channel(handle: Handle, feed: &mut Feed) {
     let node = handle;
     for child in node.children.borrow().iter() {
         match child.data {
-            NodeData::Element { ref name, ref attrs, .. } => {
+            NodeData::Element {
+                ref name,
+                ref attrs,
+                ..
+            } => {
                 let tag_name = name.local.as_ref();
-                let ns       = name.ns.as_ref();
+                let ns = name.ns.as_ref();
                 match tag_name {
                     "title" => feed.title = text(child.clone()),
                     "description" => feed.description = text(child.clone()),
                     "link" => {
                         if ATOM_NS == ns {
                             let attributes = &attrs.borrow();
-                            let href       = attr("href", attributes);
-                            let rel        = attr("rel", attributes);
-                            if let (Some(href), Some("self")) = (href, rel.as_ref().map(String::as_ref)) {
+                            let href = attr("href", attributes);
+                            let rel = attr("rel", attributes);
+                            if let (Some(href), Some("self")) =
+                                (href, rel.as_ref().map(String::as_ref))
+                            {
                                 feed.website = Some(href)
                             }
                         } else {
@@ -48,7 +54,7 @@ pub fn handle_channel(handle: Handle, feed: &mut Feed) {
                                 feed.website = Some(url)
                             }
                         }
-                    },
+                    }
                     "language" => feed.language = text(child.clone()),
                     "lastBuildDate" => feed.last_updated = timestamp(child.clone()),
                     "pubDate" => (),
@@ -64,16 +70,16 @@ pub fn handle_channel(handle: Handle, feed: &mut Feed) {
                     "skipDays" => (),
                     "category" => {
                         //TODO
-                    },
+                    }
                     "item" => {
                         if let Some(entry) = handle_item(child.clone()) {
                             feed.entries.push(entry)
                         }
-                    },
+                    }
                     _ => (),
                 }
-            },
-            _ => {},
+            }
+            _ => {}
         }
     }
 }
@@ -97,11 +103,15 @@ pub fn image_url(handle: Handle) -> Option<String> {
 
 pub fn handle_item(handle: Handle) -> Option<Entry> {
     let mut entry = Entry::new();
-    let mut published: Option<NaiveDateTime> = None;
+    let mut published: Option<DateTime<Utc>> = None;
     let node = handle;
     for child in node.children.borrow().iter() {
         match child.data {
-            NodeData::Element { ref name, ref attrs, .. } => {
+            NodeData::Element {
+                ref name,
+                ref attrs,
+                ..
+            } => {
                 let tag_name = name.local.as_ref();
                 match tag_name {
                     "title" => entry.title = text(child.clone()),
@@ -109,34 +119,36 @@ pub fn handle_item(handle: Handle) -> Option<Entry> {
                     "link" => {
                         entry.alternate = text(child.clone())
                             .map(|s| vec![Link::new("text/html", s)])
-                            .unwrap_or(vec![])
-                    },
+                            .unwrap_or_else(|| vec![])
+                    }
                     "author" => entry.author = text(child.clone()),
-                    "category" => if let Some(s) = text(child.clone()) {
-                        entry.keywords.push(s)
-                    },
-                    "comments" => {}, // TODO
+                    "category" => {
+                        if let Some(s) = text(child.clone()) {
+                            entry.keywords.push(s)
+                        }
+                    }
+                    "comments" => {} // TODO
                     "enclosure" => {
                         let attributes = &attrs.borrow();
-                        let mime_type  = attr("type", attributes);
-                        let length     = attr("length", attributes).and_then(|s| s.parse::<i64>().ok());
-                        let url        = attr("url", attributes);
+                        let mime_type = attr("type", attributes);
+                        let length = attr("length", attributes).and_then(|s| s.parse::<i64>().ok());
+                        let url = attr("url", attributes);
                         match (mime_type, length, url) {
                             (Some(mime_type), Some(length), Some(url)) => {
                                 entry.enclosure.push(Link::enc(mime_type, length, url))
-                            },
+                            }
                             _ => (),
                         }
-                    },
-                    "guid" => entry.id = text(child.clone()).unwrap_or(uuid_gen()),
+                    }
+                    "guid" => entry.id = text(child.clone()).unwrap_or_else(uuid_gen),
                     "pubDate" => published = timestamp(child.clone()),
-                    "source" => {}, // TODO
+                    "source" => {} // TODO
                     _ => (),
                 }
             }
             _ => (),
         }
     }
-    entry.published = published.unwrap_or(Utc::now().naive_utc());
+    entry.published = published.unwrap_or_else(Utc::now);
     Some(entry)
 }

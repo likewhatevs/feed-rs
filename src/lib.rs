@@ -1,10 +1,10 @@
 #[macro_use]
 extern crate serde_derive;
+extern crate chrono;
 extern crate serde;
 extern crate serde_json;
-extern crate chrono;
-extern crate xml5ever;
 extern crate uuid;
+extern crate xml5ever;
 
 pub mod entry;
 pub mod feed;
